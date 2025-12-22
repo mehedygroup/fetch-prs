@@ -2,7 +2,7 @@
 
 ## Description
 
-`fetch-prs` is a Go-based tool designed to fetch list pull requests from GitHub repositories. 
+`fetch-prs` is a tool to fetch and list your GitHub pull requests across multiple repositories within a custom date range.
 
 ## Features
 
