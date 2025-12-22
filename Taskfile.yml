@@ -1,0 +1,8 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - go mod vendor
+      - go build -o fetch-prs
+    desc: Build the project and vendor dependencies.

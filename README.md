@@ -38,14 +38,14 @@
 
 1. Create a `.env` file in the root directory and add your GitHub token:
    ```env
+   GITHUB_USERNAME=username
    GITHUB_TOKEN=your_personal_access_token
-   GITHUB_USERNAME=leninmehedy
-   REPOS=mehedygroup/fetch-prs,mehedygroup/another-repo
+   REPOS=repo-org/repo1,repo-org2/repo2
    ```
 
 2. Run the tool with the desired date range:
    ```bash
-   ./fetch-prs 2025-12-01 2025-12-15
+   ./fetch-prs fetch 2025-12-01 2025-12-15 --output json
    ```
 
    Example options:
