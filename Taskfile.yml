@@ -1,8 +1,222 @@
 version: '3'
 
+vars:
+  BINARY_NAME: fetch-prs
+  BIN_DIR: bin
+  DIST_DIR: dist
+  TARGET_OSES: [darwin, linux]
+  TARGET_ARCHES: [amd64, arm64]
+  LDFLAGS: '-w -s'
+  VERSION: '{{.VERSION | default "dev"}}'
+
 tasks:
-  build:
+  clean:
+    desc: Clean local build and release outputs.
     cmds:
-      - go mod vendor
-      - go build -o fetch-prs
-    desc: Build the project and vendor dependencies.
+      - rm -rf {{.BIN_DIR}} {{.DIST_DIR}} ./{{.BINARY_NAME}}
+
+  test:
+    desc: Run the Go test suite.
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: Run linting checks using golangci-lint.
+    deps:
+      - lint:install
+    cmds:
+      - |
+        BIN=$(command -v golangci-lint || true)
+        if [[ -z "$BIN" ]]; then
+          BIN="$(go env GOPATH)/bin/golangci-lint"
+        fi
+        "$BIN" run
+
+  lint:install:
+    internal: true
+    status:
+      - command -v golangci-lint >/dev/null 2>&1 || test -x "$(go env GOPATH)/bin/golangci-lint"
+    cmds:
+      - GOBIN=$(go env GOPATH)/bin go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+  fmt:check:
+    desc: Check code formatting.
+    cmds:
+      - test -z "$(go fmt ./...)" || (echo "Code needs formatting"; exit 1)
+
+  build:
+    desc: Build the CLI for the host OS/ARCH.
+    deps:
+      - task: build:cli
+        vars:
+          GOOS: '{{OS}}'
+          GOARCH: '{{ARCH}}'
+    cmds:
+      - cp {{.BIN_DIR}}/{{.BINARY_NAME}}-{{OS}}-{{ARCH}} ./{{.BINARY_NAME}}
+      - chmod +x ./{{.BINARY_NAME}}
+
+  build:cli:all:
+    desc: Build the CLI binary for all configured operating systems and architectures.
+    cmds:
+      - task: build:cli:all:os
+
+  build:cli:all:os:
+    internal: true
+    cmds:
+      - for:
+          var: TARGET_OSES
+        task: build:cli:all:arch
+        vars:
+          GOOS: '{{.ITEM}}'
+
+  build:cli:all:arch:
+    internal: true
+    cmds:
+      - for:
+          var: TARGET_ARCHES
+        task: build:cli
+        vars:
+          GOOS: '{{.GOOS}}'
+          GOARCH: '{{.ITEM}}'
+
+  build:cli:
+    desc: Build the CLI binary for the specified operating system and architecture.
+    env:
+      GOOS: '{{coalesce .GOOS OS}}'
+      GOARCH: '{{coalesce .GOARCH ARCH}}'
+      CGO_ENABLED: '0'
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -trimpath -ldflags='{{.LDFLAGS}}' -o {{.BIN_DIR}}/{{.BINARY_NAME}}-{{coalesce .GOOS OS}}-{{coalesce .GOARCH ARCH}} .
+      - chmod +x {{.BIN_DIR}}/{{.BINARY_NAME}}-{{coalesce .GOOS OS}}-{{coalesce .GOARCH ARCH}}
+
+  hash:cli:all:
+    desc: Hash the CLI binaries for all configured operating systems and architectures.
+    deps:
+      - build:cli:all
+    cmds:
+      - task: hash:cli:all:os
+
+  hash:cli:all:os:
+    internal: true
+    cmds:
+      - for:
+          var: TARGET_OSES
+        task: hash:cli:all:arch
+        vars:
+          GOOS: '{{.ITEM}}'
+
+  hash:cli:all:arch:
+    internal: true
+    cmds:
+      - for:
+          var: TARGET_ARCHES
+        task: hash:cli
+        vars:
+          GOOS: '{{.GOOS}}'
+          GOARCH: '{{.ITEM}}'
+
+  hash:cli:
+    internal: true
+    desc: Hash the CLI binary for the specified operating system and architecture.
+    cmds:
+      - |
+        if command -v sha256sum >/dev/null 2>&1; then
+          sha256sum {{.BIN_DIR}}/{{.BINARY_NAME}}-{{.GOOS}}-{{.GOARCH}} | awk '{print $1}' > {{.BIN_DIR}}/{{.BINARY_NAME}}-{{.GOOS}}-{{.GOARCH}}.sha256
+        else
+          shasum -a 256 {{.BIN_DIR}}/{{.BINARY_NAME}}-{{.GOOS}}-{{.GOARCH}} | awk '{print $1}' > {{.BIN_DIR}}/{{.BINARY_NAME}}-{{.GOOS}}-{{.GOARCH}}.sha256
+        fi
+
+  archive:release:all:
+    desc: Package release archives for all configured operating systems and architectures.
+    deps:
+      - build:cli:all
+    cmds:
+      - task: archive:release:all:os
+
+  archive:release:all:os:
+    internal: true
+    cmds:
+      - for:
+          var: TARGET_OSES
+        task: archive:release:all:arch
+        vars:
+          GOOS: '{{.ITEM}}'
+
+  archive:release:all:arch:
+    internal: true
+    cmds:
+      - for:
+          var: TARGET_ARCHES
+        task: archive:release
+        vars:
+          GOOS: '{{.GOOS}}'
+          GOARCH: '{{.ITEM}}'
+          VERSION: '{{.VERSION}}'
+
+  archive:release:
+    internal: true
+    desc: Package the CLI binary for the specified operating system and architecture.
+    cmds:
+      - mkdir -p {{.DIST_DIR}}
+      - |
+        version='{{.VERSION}}'
+        version_no_v="${version#v}"
+        work_dir="$(mktemp -d)"
+        cp {{.BIN_DIR}}/{{.BINARY_NAME}}-{{.GOOS}}-{{.GOARCH}} "$work_dir/{{.BINARY_NAME}}"
+        tar -C "$work_dir" -czf {{.DIST_DIR}}/{{.BINARY_NAME}}_${version_no_v}_{{.GOOS}}_{{.GOARCH}}.tar.gz {{.BINARY_NAME}}
+        rm -rf "$work_dir"
+
+  hash:release:all:
+    desc: Hash the release archives for all configured operating systems and architectures.
+    deps:
+      - archive:release:all
+    cmds:
+      - task: hash:release:all:os
+
+  hash:release:all:os:
+    internal: true
+    cmds:
+      - for:
+          var: TARGET_OSES
+        task: hash:release:all:arch
+        vars:
+          GOOS: '{{.ITEM}}'
+
+  hash:release:all:arch:
+    internal: true
+    cmds:
+      - for:
+          var: TARGET_ARCHES
+        task: hash:release
+        vars:
+          GOOS: '{{.GOOS}}'
+          GOARCH: '{{.ITEM}}'
+          VERSION: '{{.VERSION}}'
+
+  hash:release:
+    internal: true
+    desc: Hash the release archive for the specified operating system and architecture.
+    cmds:
+      - |
+        version='{{.VERSION}}'
+        version_no_v="${version#v}"
+        archive={{.DIST_DIR}}/{{.BINARY_NAME}}_${version_no_v}_{{.GOOS}}_{{.GOARCH}}.tar.gz
+        if command -v sha256sum >/dev/null 2>&1; then
+          sha256sum "$archive" | awk '{print $1}' > "$archive.sha256"
+        else
+          shasum -a 256 "$archive" | awk '{print $1}' > "$archive.sha256"
+        fi
+
+  release:artifacts:
+    desc: Build release archives and checksums into dist/.
+    cmds:
+      - rm -rf {{.DIST_DIR}}
+      - task: build:cli:all
+      - task: hash:cli:all:os
+      - task: archive:release:all:os
+        vars:
+          VERSION: '{{.VERSION}}'
+      - task: hash:release:all:os
+        vars:
+          VERSION: '{{.VERSION}}'

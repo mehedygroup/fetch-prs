@@ -31,7 +31,7 @@ Create a `.env` file in the repository root:
 ```env
 GITHUB_USERNAME=your-github-username
 GITHUB_TOKEN=your-github-token
-REPOS=hashgraph/solo-weaver,swirlds/swirlds-docker
+REPOS=mehedygroup/fetch-prs,hashgraph/solo-weaver
 ```
 
 ### Environment variables
