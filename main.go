@@ -21,8 +21,8 @@ func main() {
 	// Initialize the root command
 	var rootCmd = &cobra.Command{
 		Use:   "fetch-prs",
-		Short: "Fetch pull requests from GitHub repositories",
-		Long:  `A CLI tool to fetch and manage pull requests from GitHub repositories based on date range and other criteria.`,
+		Short: "Fetch GitHub work contributions from repositories",
+		Long:  `A CLI tool to fetch GitHub work contributions, including authored pull requests and closed issues backed by valid commits, within a date range.`,
 	}
 
 	rootCmd.AddCommand(fetchCmd)

@@ -2,62 +2,150 @@
 
 ## Description
 
-`fetch-prs` is a tool to fetch and list your GitHub pull requests across multiple repositories within a custom date range.
+`fetch-prs` is a Go CLI that fetches GitHub work contributions across multiple repositories within a custom date range.
+
+It reports:
+
+- pull requests authored by `GITHUB_USERNAME`
+- closed issues that are backed by a valid timeline-linked commit attributable to `GITHUB_USERNAME`
 
 ## Features
 
-- Fetch pull requests from a GitHub repository.
-- Output data in various formats (e.g., JSON, plain text).
-- Lightweight and easy to integrate into existing workflows.
+- Search across multiple repositories configured in `REPOS`
+- Filter work items by inclusive start and end dates
+- Mark work items with `status` (`wip` or `done`)
+- Output invoice-friendly plain text with `--plain`
+- Output structured data with `--json`
+- Install the CLI with a single macOS/Linux command via `install.sh`
+- Publish tagged GitHub releases automatically with semantic-release
 
 ## Prerequisites
 
-- Go 1.25+ installed on your system.
-- A GitHub personal access token with the necessary permissions.
+- A GitHub personal access token with permission to read the repositories you want to scan
+- Go if you want to build locally or if the installer falls back to source builds
+
+## Configuration
+
+Create a `.env` file in the repository root:
+
+```env
+GITHUB_USERNAME=your-github-username
+GITHUB_TOKEN=your-github-token
+REPOS=hashgraph/solo-weaver,swirlds/swirlds-docker
+```
+
+### Environment variables
+
+- `GITHUB_USERNAME`: GitHub username whose work should be included
+- `GITHUB_TOKEN`: personal access token used for GitHub API requests
+- `REPOS`: comma-separated list of repositories in `owner/repo` format
 
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone git@github.com:mehedygroup/fetch-prs.git
-   cd fetch-prs
-   ```
+### Quick install for macOS/Linux
 
-2. Build the project:
-   ```bash
-   go build -o fetch-prs
-   ```
+Install the latest released version:
 
-3. Run the binary:
-   ```bash
-   ./fetch-prs
-   ```
+```bash
+curl -fsSL https://raw.githubusercontent.com/mehedygroup/fetch-prs/main/install.sh | bash
+```
+
+Install a specific release tag:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mehedygroup/fetch-prs/main/install.sh | bash -s -- v0.1.1
+```
+
+Pin the version with an environment variable:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mehedygroup/fetch-prs/main/install.sh | FETCH_PRS_VERSION=v0.1.1 bash
+```
+
+Optional installer environment variables:
+
+- `FETCH_PRS_VERSION`: release tag to install, such as `v0.1.1`
+- `VERSION`: generic alternative to `FETCH_PRS_VERSION`
+- `INSTALL_DIR`: destination directory for the binary, default: `/usr/local/bin`
+- `GITHUB_TOKEN`: optional GitHub token for release API requests if you need higher rate limits
+
+The installer looks for a matching prebuilt GitHub release asset first. If no matching asset is available, it falls back to downloading the GitHub release source tarball and building locally.
+
+### Build locally
+
+```bash
+go build -o fetch-prs .
+```
 
 ## Usage
 
-1. Create a `.env` file in the root directory and add your GitHub token:
-   ```env
-   GITHUB_USERNAME=username
-   GITHUB_TOKEN=your_personal_access_token
-   REPOS=repo-org/repo1,repo-org2/repo2
-   ```
+JSON output:
 
-2. Run the tool with the desired date range:
-   ```bash
-   ./fetch-prs fetch 2025-12-01 2025-12-15 --output json
-   ```
+```bash
+./fetch-prs fetch 2025-12-01 2025-12-15 --json
+```
 
-   Example options:
-   - `2025-12-01`: Start date for fetching pull requests.
-   - `2025-12-15`: End date for fetching pull requests.
+Plain output is the default and is the most convenient for invoice lines:
+
+```bash
+./fetch-prs fetch 2025-12-01 2025-12-15 --plain
+```
+
+### Output formats
+
+- `--plain`
+- `--json`
+
+### Plain output example
+
+```text
+[done] hashgraph/solo-weaver: feat: allow RSL to resolve effective value from multiple sources deterministically, #446
+[wip] hashgraph/solo-weaver: feat: daemon core wiring, #688
+[done] hashgraph/solo-weaver: fix cache invalidation on startup, #589 (commit abc1234)
+```
+
+### Notes
+
+- The end date is inclusive
+- PR status is `done` when merged; otherwise `wip`
+- Closed issues are included only when GitHub issue timeline events point to a commit authored by `GITHUB_USERNAME`
+
+## Development
+
+Run tests:
+
+```bash
+go test ./...
+```
+
+Build release assets locally:
+
+```bash
+task release:artifacts VERSION=v0.1.1
+```
+
+## Releases
+
+This repository uses semantic-release for GitHub releases.
+
+- Pushes to `main` are evaluated for a new release
+- Release tags use the `vX.Y.Z` format
+- Release assets are built for:
+  - `darwin/amd64`
+  - `darwin/arm64`
+  - `linux/amd64`
+  - `linux/arm64`
+
+Use conventional commits so semantic-release can determine version bumps automatically.
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps:
+Contributions are welcome:
 
 1. Fork the repository.
-2. Create a new branch for your feature or bug fix.
-3. Commit your changes and open a pull request.
+2. Create a branch for your feature or bug fix.
+3. Use conventional commits when practical.
+4. Open a pull request.
 
 ## License
 
